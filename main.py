@@ -1,11 +1,22 @@
 import os
 import httpx
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="SkinWise AI API",
     description="AI Skin Analysis powered by YouCam API",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://skin-wise-ai-frontend.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 YOUCAM_API_KEY = os.getenv("YOUCAM_API_KEY")
