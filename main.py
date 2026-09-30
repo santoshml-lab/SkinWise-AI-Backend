@@ -138,3 +138,33 @@ async def analyze_skin(file: UploadFile = File(...)):
             "file_id": file_id,
             "task": task_response.json()
     }
+
+@app.get("/skin-result/{task_id}")
+async def skin_result(task_id: str):
+
+    if not YOUCAM_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="YOUCAM_API_KEY is not configured."
+        )
+
+    result_url = f"{YOUCAM_API_URL}/{task_id}"
+
+    headers = {
+        "Authorization": f"Bearer {YOUCAM_API_KEY}"
+    }
+
+    async with httpx.AsyncClient(timeout=120) as client:
+
+        response = await client.get(
+            result_url,
+            headers=headers
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.text
+            )
+
+        return response.json()
