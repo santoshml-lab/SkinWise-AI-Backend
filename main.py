@@ -87,7 +87,7 @@ def skin_result(task_id: str):
             "message": "YouCam API key is not configured."
         }
 
-    url = f"{YOUNCAM_BASE_URL}/task/{task_id}"
+    url = f"{YOUNCAM_BASE_URL}/task/skin-analysis/{task_id}"
 
     headers = {
         "Authorization": f"Bearer {YOUNCAM_API_KEY}"
