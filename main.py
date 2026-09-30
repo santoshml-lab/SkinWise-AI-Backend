@@ -78,3 +78,25 @@ def analyze_skin(image_url: str):
     )
 
     return response.json()
+
+@app.get("/skin-result/{task_id}")
+def skin_result(task_id: str):
+    if not YOUNCAM_API_KEY:
+        return {
+            "status": "error",
+            "message": "YouCam API key is not configured."
+        }
+
+    url = f"{YOUNCAM_BASE_URL}/task/{task_id}"
+
+    headers = {
+        "Authorization": f"Bearer {YOUNCAM_API_KEY}"
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=60
+    )
+
+    return response.json()
