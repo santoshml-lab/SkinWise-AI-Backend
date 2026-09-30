@@ -41,3 +41,40 @@ def youcam_status():
         "status": "success",
         "message": "YouCam API key is configured.",
     }
+
+@app.post("/analyze-skin")
+def analyze_skin(image_url: str):
+    if not YOUNCAM_API_KEY:
+        return {
+            "status": "error",
+            "message": "YouCam API key is not configured."
+        }
+
+    url = f"{YOUNCAM_BASE_URL}/task/skin-analysis"
+
+    headers = {
+        "Authorization": f"Bearer {YOUNCAM_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "src_file_url": image_url,
+        "dst_actions": [
+            "acne",
+            "moisture",
+            "oiliness",
+            "pore",
+            "texture",
+            "redness"
+        ],
+        "format": "json"
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload,
+        timeout=60
+    )
+
+    return response.json()
