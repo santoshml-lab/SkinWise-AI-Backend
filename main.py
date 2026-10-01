@@ -183,7 +183,6 @@ async def skin_result(task_id: str):
 
         return response.json()
 
-
 @app.post("/personalized-insights")
 async def personalized_insights(payload: dict = Body(...)):
 
@@ -205,29 +204,90 @@ async def personalized_insights(payload: dict = Body(...)):
 You are SkinWise AI, a cosmetic skincare guidance assistant.
 
 Analyze these YouCam skin-analysis results:
+
 {json.dumps(scores)}
 
+Your job is to convert the analysis into simple, cautious,
+general cosmetic skincare guidance.
+
 Return valid JSON with exactly these fields:
+
 {{
-  "profile_summary": "A short, balanced summary",
-  "focus_areas": ["Up to 3 gentle skincare priorities"],
-  "morning_routine": ["Step-by-step general routine"],
-  "evening_routine": ["Step-by-step general routine"],
-  "product_categories": ["Relevant cosmetic product categories"],
+  "profile_summary": "A short balanced summary",
+  "focus_areas": ["Up to 3 general skincare priorities"],
+  "morning_routine": ["Simple step-by-step routine"],
+  "evening_routine": ["Simple step-by-step routine"],
+  "product_categories": ["Approved cosmetic product categories only"],
   "note": "A brief safety and uncertainty note"
 }}
 
-Important rules:
-- These are YouCam UI scores, not acne severity scores.
-- Do not assume a high acne score means more acne.
-- Interpret scores cautiously and do not invent skin conditions.
-- Do not diagnose diseases or promise results.
-- Offer gentle, general cosmetic skincare guidance.
-- Keep routines simple and suitable for beginners.
-- Mention broad-spectrum SPF 30+ sunscreen in the morning routine.
-- Do not recommend prescription medicines or harsh treatments.
-- If the scores do not establish a concern, say so.
-- Return JSON only.
+IMPORTANT SAFETY AND QUALITY RULES:
+
+1. These are YouCam UI analysis scores.
+   Do not treat them as medical measurements or diagnoses.
+
+2. Do not diagnose acne, rosacea, pigmentation disorders,
+   skin diseases, or any other medical condition.
+
+3. Do not claim that a high or low score automatically means
+   a medical problem.
+
+4. Keep recommendations general and cosmetic.
+
+5. Do not recommend prescription medicines.
+
+6. Do not recommend specific treatment concentrations,
+   strong chemical treatments, or aggressive procedures.
+
+7. Do not recommend spot treatments.
+
+8. Do not recommend specific AHA/BHA percentages.
+
+9. Do not recommend retinoids or prescription-strength actives.
+
+10. Do not make claims that a product will cure, remove,
+    reverse, or permanently change a skin condition.
+
+11. Keep routines simple and beginner-friendly.
+
+12. Broad-spectrum SPF 30+ sunscreen may be included
+    in the morning routine.
+
+13. Only use product categories from this approved list:
+
+    - Gentle cleansers
+    - Hydrating toners
+    - Lightweight moisturizers
+    - Hydrating serums
+    - Niacinamide-based cosmetic serums
+    - Broad-spectrum SPF 30+ sunscreens
+    - Gentle cosmetic exfoliants
+
+14. Do not invent additional product categories.
+
+15. If the analysis does not clearly establish a concern,
+    use neutral wording such as "maintain" or "support"
+    instead of claiming a problem.
+
+16. Avoid appearance-pressure language such as:
+    "perfect skin", "flawless skin", or "fix your skin".
+
+17. Encourage patch-testing new cosmetic products and
+    stopping use if irritation occurs.
+
+18. If someone has persistent or concerning skin symptoms,
+    suggest consulting a qualified dermatologist.
+
+19. Do not use the skin_age value as a diagnosis or claim
+    about the user's actual biological age.
+
+20. Keep profile_summary concise and easy to understand.
+
+21. Keep focus_areas limited to a maximum of 3 items.
+
+22. Keep each routine to approximately 4-5 simple steps.
+
+23. Return JSON only. Do not include Markdown or extra text.
 """
 
     headers = {
@@ -241,8 +301,9 @@ Important rules:
             {
                 "role": "system",
                 "content": (
-                    "You provide cautious, non-medical cosmetic "
-                    "skincare guidance and follow the requested JSON format."
+                    "You are SkinWise AI. "
+                    "Provide cautious, general cosmetic skincare guidance. "
+                    "Follow the user's requested JSON structure exactly."
                 )
             },
             {
@@ -250,12 +311,16 @@ Important rules:
                 "content": prompt
             }
         ],
-        "temperature": 0.3,
-        "response_format": {"type": "json_object"}
+        "temperature": 0.2,
+        "response_format": {
+            "type": "json_object"
+        }
     }
 
     try:
+
         async with httpx.AsyncClient(timeout=60) as client:
+
             response = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers=headers,
@@ -269,8 +334,37 @@ Important rules:
             )
 
         response_data = response.json()
-        content = response_data["choices"][0]["message"]["content"]
+
+        content = (
+            response_data
+            .get("choices", [{}])[0]
+            .get("message", {})
+            .get("content")
+        )
+
+        if not content:
+            raise HTTPException(
+                status_code=502,
+                detail="AI returned an empty response."
+            )
+
         insights = json.loads(content)
+
+        required_fields = [
+            "profile_summary",
+            "focus_areas",
+            "morning_routine",
+            "evening_routine",
+            "product_categories",
+            "note"
+        ]
+
+        for field in required_fields:
+            if field not in insights:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"AI response is missing field: {field}"
+                )
 
         return {
             "status": "success",
@@ -280,9 +374,27 @@ Important rules:
     except HTTPException:
         raise
 
-    except (httpx.HTTPError, KeyError, IndexError, ValueError):
+    except json.JSONDecodeError:
         raise HTTPException(
             status_code=502,
-            detail="Could not generate personalized insights."
+            detail="AI returned invalid JSON."
         )
+
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to the AI service."
+        )
+
+    except (KeyError, IndexError, TypeError):
+        raise HTTPException(
+            status_code=502,
+            detail="Unexpected response from the AI service."
+        )
+
+
+
+
+
+    
 
