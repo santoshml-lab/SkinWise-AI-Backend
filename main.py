@@ -253,209 +253,130 @@ async def personalized_insights(payload: dict = Body(...)):
     if not isinstance(scores, list) or not scores:
         raise HTTPException(
             status_code=400,
-            detail="Please provide skin analysis results."
+            detail="Please provide skin analysis scores."
         )
-
-    # ---------------------------------------------------------
-    # Extract only the analysis types.
-    #
-    # IMPORTANT:
-    # We intentionally do NOT calculate "high concern" or
-    # "low concern" from YouCam UI scores because the UI score
-    # direction is not assumed here.
-    # ---------------------------------------------------------
-
-    analysis_types = []
-
-    for item in scores:
-        if not isinstance(item, dict):
-            continue
-
-        metric_type = item.get("type")
-
-        if metric_type and metric_type not in analysis_types:
-            analysis_types.append(metric_type)
-
-    # Remove the overall score from the descriptive signal list.
-    analysis_types = [
-        item for item in analysis_types
-        if item != "all"
-    ]
-
-    analysis_data = {
-        "available_analysis_signals": analysis_types,
-        "raw_results": scores
-    }
 
     prompt = f"""
 You are SkinWise AI, a cautious cosmetic skincare guidance assistant.
 
-The user has completed a YouCam skin analysis.
+The following data comes from YouCam AI Skin Analysis:
 
-Here is the analysis data:
+{json.dumps(scores)}
 
-{json.dumps(analysis_data)}
+IMPORTANT:
+The numeric values in this data are YouCam UI analysis scores.
 
-Your job is to convert this information into simple,
-balanced and general cosmetic skincare guidance.
+Do NOT assume that:
+- a higher score means a worse skin condition
+- a lower score means a better skin condition
+- any score represents disease severity
+- any score represents medical risk
 
-IMPORTANT INTERPRETATION RULE:
+The score direction and meaning must not be invented.
 
-The numeric values in this dataset are YouCam analysis/UI
-scores.
-
-DO NOT assume that:
-
-- a higher score means more concern
-- a lower score means more concern
-- a higher score means worse skin
-- a lower score means better skin
-
-Do not create severity rankings from the numeric scores.
-
-Do not say things such as:
-
-"high acne"
-
-"low moisture"
-
-"high pore visibility"
-
-"severe redness"
-
-"poor skin"
-
-or similar statements unless the source explicitly provides
-that interpretation.
-
-Instead, treat the results as analysis signals.
-
-For example:
-
-GOOD:
-"The analysis includes measurements related to moisture,
-texture and pore appearance."
-
-GOOD:
-"Your SkinWise routine can focus on gentle cleansing,
-hydration and daily sun protection."
-
-BAD:
-"Your high pore score means you have enlarged pores."
-
-BAD:
-"Your acne score is very high."
+Your task is to create a simple, balanced cosmetic skincare routine
+without diagnosing or labeling a skin problem.
 
 Return valid JSON with exactly these fields:
 
 {{
-  "profile_summary": "A short balanced summary",
+  "profile_summary": "A short neutral summary",
   "focus_areas": [
-    "Up to 3 neutral analysis areas"
+    "Up to 3 neutral skincare routine priorities"
   ],
   "morning_routine": [
-    "Simple step-by-step cosmetic routine"
+    "Simple cosmetic skincare steps"
   ],
   "evening_routine": [
-    "Simple step-by-step cosmetic routine"
+    "Simple cosmetic skincare steps"
   ],
   "product_categories": [
     "Approved cosmetic product categories only"
   ],
-  "note": "A brief safety and uncertainty note"
+  "note": "Brief safety and uncertainty note"
 }}
 
 SAFETY AND QUALITY RULES:
 
-1. These results are cosmetic AI skin-analysis signals,
-   not medical measurements.
+1. Do not diagnose acne, rosacea, pigmentation disorders,
+   skin diseases, or any medical condition.
 
-2. Do not diagnose acne, rosacea, pigmentation disorders,
-   skin diseases or any other medical condition.
+2. Do not describe any numeric score as a medical measurement.
 
-3. Do not claim that a numeric score proves a medical
-   problem.
+3. Do not infer that a high or low score means a skin problem.
 
-4. Do not infer severity from numeric scores.
+4. Do not use score magnitude to decide that a person has
+   acne, oily skin, wrinkles, pores, redness, pigmentation,
+   or any other condition.
 
-5. Keep recommendations general and cosmetic.
+5. Do not compare the person's skin with other people.
 
-6. Do not recommend prescription medicines.
+6. Do not use appearance-pressure language such as:
+   "perfect skin", "flawless skin", "fix your skin",
+   or similar language.
 
-7. Do not recommend aggressive procedures.
+7. Keep recommendations general and cosmetic.
 
-8. Do not recommend specific treatment concentrations.
+8. Do not recommend prescription medicines.
 
-9. Do not recommend specific AHA/BHA percentages.
+9. Do not recommend aggressive procedures.
 
-10. Do not recommend retinoids or prescription-strength
-    actives.
+10. Do not recommend strong chemical treatments.
 
-11. Do not recommend spot treatments.
+11. Do not recommend specific AHA/BHA percentages.
 
-12. Do not claim that any product will cure, remove,
-    reverse or permanently change a skin condition.
+12. Do not recommend retinoids or prescription-strength actives.
 
-13. Keep routines simple and beginner-friendly.
+13. Do not recommend spot treatments.
 
-14. Broad-spectrum SPF 30+ sunscreen may be included in
-    the morning routine.
+14. Broad-spectrum SPF 30+ sunscreen may be included.
 
-15. Only use product categories from this exact approved list:
+15. Use only these approved product categories:
 
     - Gentle cleansers
     - Hydrating toners
-    - Lightweight moisturizers
     - Hydrating serums
-    - Niacinamide-based cosmetic serums
+    - Lightweight moisturizers
     - Broad-spectrum SPF 30+ sunscreens
-    - Gentle cosmetic exfoliants
 
 16. Do not invent additional product categories.
 
-17. If the analysis does not clearly establish a concern,
-    use neutral wording such as "maintain", "support",
-    "daily care" or "routine".
+17. Product categories must NOT be selected because a numeric
+    score is high or low.
 
-18. Do not use appearance-pressure language such as:
+18. Focus areas must be neutral routine priorities, not diagnoses
+    or claims that the user has a skin problem.
 
-    "perfect skin"
-    "flawless skin"
-    "fix your skin"
+19. Suitable neutral focus areas may include:
+    - Daily cleansing
+    - Hydration support
+    - Moisture support
+    - Daily sun protection
+    - Simple consistent skincare routine
 
-19. Encourage patch-testing new cosmetic products.
+20. Do not use "skin age" as a diagnosis or as the person's
+    biological age.
 
-20. Tell the user to stop using a product if irritation
-    occurs.
+21. Keep the profile summary concise.
 
-21. If someone has persistent or concerning skin symptoms,
+22. Keep focus_areas to a maximum of 3 items.
+
+23. Morning routine should contain approximately 4-5 simple steps.
+
+24. Evening routine should contain approximately 3-4 simple steps.
+
+25. Keep the routine consistent with the approved product categories.
+
+26. Encourage patch-testing new cosmetic products and stopping
+    use if irritation occurs.
+
+27. If someone has persistent or concerning skin symptoms,
     suggest consulting a qualified dermatologist.
 
-22. Do not use the skin_age value as a diagnosis or claim
-    about the user's biological age.
+28. Return JSON only. Do not include Markdown or extra text.
 
-23. Keep profile_summary concise.
-
-24. Keep focus_areas to a maximum of 3 items.
-
-25. Keep morning_routine to approximately 4-5 steps.
-
-26. Keep evening_routine to approximately 4-5 steps.
-
-27. Product categories should remain broad and cosmetic.
-
-28. Do not mention internal API fields such as ui_score,
-    task_id or raw JSON in the user-facing response.
-
-29. Return JSON only.
-
-30. Do not include Markdown or extra text.
-
-IMPORTANT:
-
-The purpose of SkinWise AI is to help users understand their
-analysis in a calm and useful way, not to diagnose or judge
-their appearance.
+Create a balanced routine based on the available YouCam analysis,
+but NEVER invent a concern from the numeric scores.
 """
 
     headers = {
@@ -470,10 +391,9 @@ their appearance.
                 "role": "system",
                 "content": (
                     "You are SkinWise AI. "
-                    "Provide cautious, general cosmetic skincare "
-                    "guidance. Never infer severity from numeric "
-                    "YouCam UI scores. Follow the requested JSON "
-                    "structure exactly."
+                    "Provide cautious, neutral, general cosmetic skincare guidance. "
+                    "Never infer medical conditions or skin concerns from "
+                    "numeric UI scores. Follow the requested JSON structure exactly."
                 )
             },
             {
@@ -481,7 +401,7 @@ their appearance.
                 "content": prompt
             }
         ],
-        "temperature": 0.2,
+        "temperature": 0.1,
         "response_format": {
             "type": "json_object"
         }
@@ -530,12 +450,34 @@ their appearance.
         ]
 
         for field in required_fields:
-
             if field not in insights:
                 raise HTTPException(
                     status_code=502,
                     detail=f"AI response is missing field: {field}"
                 )
+
+        # Keep the AI response aligned with the frontend product catalog.
+        allowed_categories = [
+            "Gentle cleansers",
+            "Hydrating toners",
+            "Hydrating serums",
+            "Lightweight moisturizers",
+            "Broad-spectrum SPF 30+ sunscreens"
+        ]
+
+        insights["product_categories"] = [
+            category
+            for category in insights["product_categories"]
+            if category in allowed_categories
+        ]
+
+        if not insights["product_categories"]:
+            insights["product_categories"] = [
+                "Gentle cleansers",
+                "Hydrating serums",
+                "Lightweight moisturizers",
+                "Broad-spectrum SPF 30+ sunscreens"
+            ]
 
         return {
             "status": "success",
@@ -562,6 +504,12 @@ their appearance.
             status_code=502,
             detail="Unexpected response from the AI service."
         )
+
+
+
+
+    
+        
 
 
 
