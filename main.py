@@ -2,6 +2,8 @@ import os
 import httpx
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import json
+from fastapi import Body
 
 app = FastAPI(
     title="SkinWise AI API",
@@ -18,6 +20,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 YOUCAM_API_KEY = os.getenv("YOUCAM_API_KEY")
 YOUCAM_API_URL = os.getenv("YOUCAM_API_URL")
