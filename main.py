@@ -253,68 +253,155 @@ async def personalized_insights(payload: dict = Body(...)):
     if not isinstance(scores, list) or not scores:
         raise HTTPException(
             status_code=400,
-            detail="Please provide skin analysis scores."
+            detail="Please provide skin analysis results."
         )
 
-    recommendation_context = build_recommendation_context(scores)
+    # ---------------------------------------------------------
+    # Extract only the analysis types.
+    #
+    # IMPORTANT:
+    # We intentionally do NOT calculate "high concern" or
+    # "low concern" from YouCam UI scores because the UI score
+    # direction is not assumed here.
+    # ---------------------------------------------------------
+
+    analysis_types = []
+
+    for item in scores:
+        if not isinstance(item, dict):
+            continue
+
+        metric_type = item.get("type")
+
+        if metric_type and metric_type not in analysis_types:
+            analysis_types.append(metric_type)
+
+    # Remove the overall score from the descriptive signal list.
+    analysis_types = [
+        item for item in analysis_types
+        if item != "all"
+    ]
+
+    analysis_data = {
+        "available_analysis_signals": analysis_types,
+        "raw_results": scores
+    }
 
     prompt = f"""
-You are SkinWise AI, a cosmetic skincare guidance assistant.
+You are SkinWise AI, a cautious cosmetic skincare guidance assistant.
 
-Analyze these YouCam skin-analysis results:
+The user has completed a YouCam skin analysis.
 
-{json.dumps(scores)}
-Controlled recommendation context:
+Here is the analysis data:
 
-{json.dumps(recommendation_context)}
+{json.dumps(analysis_data)}
 
-Your job is to convert the analysis into simple, cautious,
-general cosmetic skincare guidance.
+Your job is to convert this information into simple,
+balanced and general cosmetic skincare guidance.
+
+IMPORTANT INTERPRETATION RULE:
+
+The numeric values in this dataset are YouCam analysis/UI
+scores.
+
+DO NOT assume that:
+
+- a higher score means more concern
+- a lower score means more concern
+- a higher score means worse skin
+- a lower score means better skin
+
+Do not create severity rankings from the numeric scores.
+
+Do not say things such as:
+
+"high acne"
+
+"low moisture"
+
+"high pore visibility"
+
+"severe redness"
+
+"poor skin"
+
+or similar statements unless the source explicitly provides
+that interpretation.
+
+Instead, treat the results as analysis signals.
+
+For example:
+
+GOOD:
+"The analysis includes measurements related to moisture,
+texture and pore appearance."
+
+GOOD:
+"Your SkinWise routine can focus on gentle cleansing,
+hydration and daily sun protection."
+
+BAD:
+"Your high pore score means you have enlarged pores."
+
+BAD:
+"Your acne score is very high."
 
 Return valid JSON with exactly these fields:
 
 {{
   "profile_summary": "A short balanced summary",
-  "focus_areas": ["Up to 3 general skincare priorities"],
-  "morning_routine": ["Simple step-by-step routine"],
-  "evening_routine": ["Simple step-by-step routine"],
-  "product_categories": ["Approved cosmetic product categories only"],
+  "focus_areas": [
+    "Up to 3 neutral analysis areas"
+  ],
+  "morning_routine": [
+    "Simple step-by-step cosmetic routine"
+  ],
+  "evening_routine": [
+    "Simple step-by-step cosmetic routine"
+  ],
+  "product_categories": [
+    "Approved cosmetic product categories only"
+  ],
   "note": "A brief safety and uncertainty note"
 }}
 
-IMPORTANT SAFETY AND QUALITY RULES:
+SAFETY AND QUALITY RULES:
 
-1. These are YouCam UI analysis scores.
-   Do not treat them as medical measurements or diagnoses.
+1. These results are cosmetic AI skin-analysis signals,
+   not medical measurements.
 
 2. Do not diagnose acne, rosacea, pigmentation disorders,
-   skin diseases, or any other medical condition.
+   skin diseases or any other medical condition.
 
-3. Do not claim that a high or low score automatically means
-   a medical problem.
+3. Do not claim that a numeric score proves a medical
+   problem.
 
-4. Keep recommendations general and cosmetic.
+4. Do not infer severity from numeric scores.
 
-5. Do not recommend prescription medicines.
+5. Keep recommendations general and cosmetic.
 
-6. Do not recommend specific treatment concentrations,
-   strong chemical treatments, or aggressive procedures.
+6. Do not recommend prescription medicines.
 
-7. Do not recommend spot treatments.
+7. Do not recommend aggressive procedures.
 
-8. Do not recommend specific AHA/BHA percentages.
+8. Do not recommend specific treatment concentrations.
 
-9. Do not recommend retinoids or prescription-strength actives.
+9. Do not recommend specific AHA/BHA percentages.
 
-10. Do not make claims that a product will cure, remove,
-    reverse, or permanently change a skin condition.
+10. Do not recommend retinoids or prescription-strength
+    actives.
 
-11. Keep routines simple and beginner-friendly.
+11. Do not recommend spot treatments.
 
-12. Broad-spectrum SPF 30+ sunscreen may be included
-    in the morning routine.
+12. Do not claim that any product will cure, remove,
+    reverse or permanently change a skin condition.
 
-13. Only use product categories from this approved list:
+13. Keep routines simple and beginner-friendly.
+
+14. Broad-spectrum SPF 30+ sunscreen may be included in
+    the morning routine.
+
+15. Only use product categories from this exact approved list:
 
     - Gentle cleansers
     - Hydrating toners
@@ -324,31 +411,51 @@ IMPORTANT SAFETY AND QUALITY RULES:
     - Broad-spectrum SPF 30+ sunscreens
     - Gentle cosmetic exfoliants
 
-14. Do not invent additional product categories.
+16. Do not invent additional product categories.
 
-15. If the analysis does not clearly establish a concern,
-    use neutral wording such as "maintain" or "support"
-    instead of claiming a problem.
+17. If the analysis does not clearly establish a concern,
+    use neutral wording such as "maintain", "support",
+    "daily care" or "routine".
 
-16. Avoid appearance-pressure language such as:
-    "perfect skin", "flawless skin", or "fix your skin".
+18. Do not use appearance-pressure language such as:
 
-17. Encourage patch-testing new cosmetic products and
-    stopping use if irritation occurs.
+    "perfect skin"
+    "flawless skin"
+    "fix your skin"
 
-18. If someone has persistent or concerning skin symptoms,
+19. Encourage patch-testing new cosmetic products.
+
+20. Tell the user to stop using a product if irritation
+    occurs.
+
+21. If someone has persistent or concerning skin symptoms,
     suggest consulting a qualified dermatologist.
 
-19. Do not use the skin_age value as a diagnosis or claim
-    about the user's actual biological age.
+22. Do not use the skin_age value as a diagnosis or claim
+    about the user's biological age.
 
-20. Keep profile_summary concise and easy to understand.
+23. Keep profile_summary concise.
 
-21. Keep focus_areas limited to a maximum of 3 items.
+24. Keep focus_areas to a maximum of 3 items.
 
-22. Keep each routine to approximately 4-5 simple steps.
+25. Keep morning_routine to approximately 4-5 steps.
 
-23. Return JSON only. Do not include Markdown or extra text.
+26. Keep evening_routine to approximately 4-5 steps.
+
+27. Product categories should remain broad and cosmetic.
+
+28. Do not mention internal API fields such as ui_score,
+    task_id or raw JSON in the user-facing response.
+
+29. Return JSON only.
+
+30. Do not include Markdown or extra text.
+
+IMPORTANT:
+
+The purpose of SkinWise AI is to help users understand their
+analysis in a calm and useful way, not to diagnose or judge
+their appearance.
 """
 
     headers = {
@@ -363,8 +470,10 @@ IMPORTANT SAFETY AND QUALITY RULES:
                 "role": "system",
                 "content": (
                     "You are SkinWise AI. "
-                    "Provide cautious, general cosmetic skincare guidance. "
-                    "Follow the user's requested JSON structure exactly."
+                    "Provide cautious, general cosmetic skincare "
+                    "guidance. Never infer severity from numeric "
+                    "YouCam UI scores. Follow the requested JSON "
+                    "structure exactly."
                 )
             },
             {
@@ -421,6 +530,7 @@ IMPORTANT SAFETY AND QUALITY RULES:
         ]
 
         for field in required_fields:
+
             if field not in insights:
                 raise HTTPException(
                     status_code=502,
@@ -452,6 +562,11 @@ IMPORTANT SAFETY AND QUALITY RULES:
             status_code=502,
             detail="Unexpected response from the AI service."
         )
+
+
+
+
+    
 
 
 
