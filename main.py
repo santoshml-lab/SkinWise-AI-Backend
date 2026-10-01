@@ -29,11 +29,11 @@ FILE_API_URL = "https://yce-api-01.makeupar.com/s2s/v2.0/file"
 
 def build_recommendation_context(scores):
     """
-    Convert YouCam analysis categories into a controlled,
-    neutral recommendation context.
+    Controlled recommendation layer.
 
     Important:
-    Numeric scores are NOT interpreted as good/bad.
+    YouCam numeric scores are NOT interpreted as good/bad,
+    high/low concern, severity, or diagnosis.
     """
 
     available_metrics = []
@@ -44,31 +44,44 @@ def build_recommendation_context(scores):
         if metric_type and metric_type not in available_metrics:
             available_metrics.append(metric_type)
 
-    context = {
+    return {
         "measured_metrics": available_metrics,
-        "allowed_focus_areas": [
-            "Hydration support",
-            "Skin barrier support",
-            "Gentle cleansing",
-            "Daily sun protection",
-            "General skin maintenance"
-        ],
-        "allowed_product_categories": [
+
+        "score_interpretation": (
+            "Numeric YouCam scores must not be interpreted as "
+            "good, bad, high concern, low concern, severity, "
+            "or diagnosis."
+        ),
+
+        "default_product_categories": [
             "Gentle cleansers",
             "Hydrating toners",
-            "Lightweight moisturizers",
             "Hydrating serums",
+            "Lightweight moisturizers",
+            "Broad-spectrum SPF 30+ sunscreens"
+        ],
+
+        "optional_product_categories": [
             "Niacinamide-based cosmetic serums",
-            "Broad-spectrum SPF 30+ sunscreens",
             "Gentle cosmetic exfoliants"
         ],
-        "score_interpretation": (
-            "Do not interpret numeric YouCam scores as good, bad, "
-            "high concern, low concern, severity, or diagnosis."
+
+        "default_focus_areas": [
+            "Hydration support",
+            "Skin barrier support",
+            "Daily sun protection"
+        ],
+
+        "recommendation_policy": (
+            "Use default product categories for the basic routine. "
+            "Do not automatically recommend optional categories "
+            "from numeric scores alone."
         )
     }
 
-    return context
+    
+    
+        
 
 
 @app.get("/")
