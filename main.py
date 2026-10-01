@@ -182,3 +182,107 @@ async def skin_result(task_id: str):
             )
 
         return response.json()
+
+
+@app.post("/personalized-insights")
+async def personalized_insights(payload: dict = Body(...)):
+
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY is not configured."
+        )
+
+    scores = payload.get("scores", [])
+
+    if not isinstance(scores, list) or not scores:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide skin analysis scores."
+        )
+
+    prompt = f"""
+You are SkinWise AI, a cosmetic skincare guidance assistant.
+
+Analyze these YouCam skin-analysis results:
+{json.dumps(scores)}
+
+Return valid JSON with exactly these fields:
+{{
+  "profile_summary": "A short, balanced summary",
+  "focus_areas": ["Up to 3 gentle skincare priorities"],
+  "morning_routine": ["Step-by-step general routine"],
+  "evening_routine": ["Step-by-step general routine"],
+  "product_categories": ["Relevant cosmetic product categories"],
+  "note": "A brief safety and uncertainty note"
+}}
+
+Important rules:
+- These are YouCam UI scores, not acne severity scores.
+- Do not assume a high acne score means more acne.
+- Interpret scores cautiously and do not invent skin conditions.
+- Do not diagnose diseases or promise results.
+- Offer gentle, general cosmetic skincare guidance.
+- Keep routines simple and suitable for beginners.
+- Mention broad-spectrum SPF 30+ sunscreen in the morning routine.
+- Do not recommend prescription medicines or harsh treatments.
+- If the scores do not establish a concern, say so.
+- Return JSON only.
+"""
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    request_data = {
+        "model": "openai/gpt-oss-20b",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You provide cautious, non-medical cosmetic "
+                    "skincare guidance and follow the requested JSON format."
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "temperature": 0.3,
+        "response_format": {"type": "json_object"}
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=request_data
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail="AI service request failed. Check backend logs."
+            )
+
+        response_data = response.json()
+        content = response_data["choices"][0]["message"]["content"]
+        insights = json.loads(content)
+
+        return {
+            "status": "success",
+            "insights": insights
+        }
+
+    except HTTPException:
+        raise
+
+    except (httpx.HTTPError, KeyError, IndexError, ValueError):
+        raise HTTPException(
+            status_code=502,
+            detail="Could not generate personalized insights."
+        )
+
