@@ -27,6 +27,49 @@ YOUCAM_API_URL = os.getenv("YOUCAM_API_URL")
 
 FILE_API_URL = "https://yce-api-01.makeupar.com/s2s/v2.0/file"
 
+def build_recommendation_context(scores):
+    """
+    Convert YouCam analysis categories into a controlled,
+    neutral recommendation context.
+
+    Important:
+    Numeric scores are NOT interpreted as good/bad.
+    """
+
+    available_metrics = []
+
+    for item in scores:
+        metric_type = item.get("type")
+
+        if metric_type and metric_type not in available_metrics:
+            available_metrics.append(metric_type)
+
+    context = {
+        "measured_metrics": available_metrics,
+        "allowed_focus_areas": [
+            "Hydration support",
+            "Skin barrier support",
+            "Gentle cleansing",
+            "Daily sun protection",
+            "General skin maintenance"
+        ],
+        "allowed_product_categories": [
+            "Gentle cleansers",
+            "Hydrating toners",
+            "Lightweight moisturizers",
+            "Hydrating serums",
+            "Niacinamide-based cosmetic serums",
+            "Broad-spectrum SPF 30+ sunscreens",
+            "Gentle cosmetic exfoliants"
+        ],
+        "score_interpretation": (
+            "Do not interpret numeric YouCam scores as good, bad, "
+            "high concern, low concern, severity, or diagnosis."
+        )
+    }
+
+    return context
+
 
 @app.get("/")
 def root():
@@ -200,12 +243,17 @@ async def personalized_insights(payload: dict = Body(...)):
             detail="Please provide skin analysis scores."
         )
 
+    recommendation_context = build_recommendation_context(scores)
+
     prompt = f"""
 You are SkinWise AI, a cosmetic skincare guidance assistant.
 
 Analyze these YouCam skin-analysis results:
 
 {json.dumps(scores)}
+Controlled recommendation context:
+
+{json.dumps(recommendation_context)}
 
 Your job is to convert the analysis into simple, cautious,
 general cosmetic skincare guidance.
